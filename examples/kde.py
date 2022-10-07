@@ -58,7 +58,7 @@ def make_sample(npts=1000):
     y=np.random.normal(3.2,1.5, npts)
     z=np.random.uniform(2,2.5, npts)
     ##each row must correspond to a single data point
-    data=np.array([x,y,z])
+    data=np.array([x,y,np.sqrt(np.abs(x*y))])
     return data.T
 def kde_fit(data, valdata, filename, **kwargs):
     from sklearn.neighbors import KernelDensity
@@ -128,8 +128,8 @@ def main():
     logger.info("work path done")
     
 
-    data=make_sample(100000)
-    valdata=make_sample(100000)
+    data=make_sample(10000)
+    valdata=make_sample(10000)
     #valdata=data
     logger.info("data done")
 
@@ -137,7 +137,7 @@ def main():
     plot_data(data, filename )
     logger.info("plotting done")
 
-    kwargs={"kernel":"gaussian", "bandwidth":10.0}
+    kwargs={"kernel":"gaussian", "bandwidth":10}
     filename=os.path.join(outpath,"kde_distribution.png")
     kde_fit(data, valdata,filename, **kwargs)
     logger.info("fitting done")

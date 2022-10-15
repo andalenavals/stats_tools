@@ -201,7 +201,7 @@ def main():
     logger.info("work path done")
     
 
-    data=make_sample(100000)
+    data=make_sample(1000)
     valdata=make_grid_sample(data, 100000)
     #valdata=make_sample(100000)
     #valdata=data
@@ -209,7 +209,6 @@ def main():
 
     filename=os.path.join(outpath,"input_distribution.png")
     make_plots(data, filename=filename )
-  
     logger.info("plotting done")
     
     di=find_best_bandwidth(data)

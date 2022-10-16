@@ -72,67 +72,15 @@ def make_grid_sample(data, npts=1000):
         outdata.append(np.random.uniform(mi,ma, npts))
     return np.array(outdata).T  
 
-def make_plots(data, valdata=None, out=None, bins=200, density=True, logy=False, filename=None):
-    data=data.T
-    l=4 #inch
-    plt.clf()
-    fig, ax= plt.subplots( 1, len(data), sharey=True, figsize=(len(data)*l,l), squeeze=0)
-   
-    
-    for i, f in enumerate(data):
-        ax[0,i].hist(f, bins=bins, log=logy, density=density,  histtype="step", color='blue', label="input dist")
-        ax[0,i].set_xlabel("")
-        med=np.median(f)
-        ax[0,i].axvline(med, color='gray', lw=1.5,ls=":", label="Median: %.2f"%(med))
-        ax[0,i].legend(loc='best')
-    
-    if valdata is not None:
-        valdata=valdata.T
-        for i, f in enumerate(valdata):
-            #ax[0,i].plot(f, out,color='red', label="kde dist") # only work ins 1d
-            ax[0,i].hist(f, weights=out, bins=bins, log=logy, density=density,histtype="step", color='red', label="kde dist")
-            ax[0,i].set_xlabel("")
-            med=np.median(f)
-            ax[0,i].axvline(med, color='gray', lw=1.5,ls=":", label="Median: %.2f"%(med))
-            ax[0,i].legend(loc='best')
-            
-    fig.tight_layout()
-    fig.savefig(filename, dpi=200)
-    plt.close(fig)
-
-
-    l=4
-    data=data.T; 
-    nvars=data.shape[1]
-    plt.clf()
-    fig, ax= plt.subplots( 1, nvars, sharey=True, figsize=(nvars*l,l), squeeze=0)
-    plotkwargs={"color":'blue', "label":"input dist"}
-    plot.make_marginal_percentiles_plot(ax, data, weights=None, nbins=bins, logy=logy, plotkwargs=plotkwargs)
-    if valdata is not None:
-        valdata=valdata.T
-        plotkwargs={"color":'red', "label":"val dist"}
-        plot.make_marginal_percentiles_plot(ax, valdata, weights=out, nbins=bins, logy=logy, plotkwargs=plotkwargs)
-    fig.tight_layout()
-    fig.savefig(filename.replace(".png", "_percentiles.png"), dpi=200)
-    plt.close(fig)
-
-    #contour plots
-    plt.clf()
-    colors=["green", "blue", "red", "black"]
-    if valdata is not None:
-        names=["p%i"%(i) for i in range(nvars)]
-        trianglekwargs={"filled_compare":[True,True],"contour_colors":colors[:2], "line_args":[{'ls':'solid', 'lw':2, 'color':colors[i]} for i in range(nvars)], "title_limit":1, }
-        plot.getdist_plots_list([data, valdata], [names]*2, [names]*2, filename.replace(".png", "_contourns.png"),trianglekwargs,  weights_list=[None, out], title=None)
-    else:
-        names=["p%i"%(i) for i in range(nvars)]
-        plot.getdist_plots(data,names,names, filename.replace(".png", "_contourns.png"), weights=None, title=None)
-        
+     
 def gmm_sklearn(data, valdata, **kwargs):
-    from sklearn.mixture import GMM
-    gmm = GMM(**kwargs)
-    gmm.fit(data)
-
-    out=gmm.predict(valdata)
+    from sklearn.mixture import GaussianMixture
+    gmm = GaussianMixture(**kwargs)
+    h=gmm.fit(data)
+    #print(type(h))
+    out=np.exp(h.score_samples(valdata))
+    #out=h.predict_proba(valdata)
+    #out=gmm.fit_predict(data,valdata)
     return out
 
    
@@ -162,27 +110,29 @@ def main():
     logger.info("work path done")
     
 
-    data=make_sample(1000)
+    data=make_sample(100000)
     valdata=make_grid_sample(data, 100000)
     #valdata=make_sample(100000)
     #valdata=data
     logger.info("data done")
 
     filename=os.path.join(outpath,"input_distribution.png")
-    make_plots(data, filename=filename )
+    plot.make_plots(data, filename=filename )
     logger.info("plotting done")
     
     #di=find_best_bandwidth(data)
     di={}
 
 
-    kwargs_sklearn={"ncomp":1}
+    kwargs_sklearn={"n_components":10, "covariance_type":"tied"}
     kwargs_sklearn.update(di)
     out=gmm_sklearn(data, valdata,**kwargs_sklearn)
+    print(type(out))
+    print(out.shape)
     print(out)
     filename=os.path.join(outpath,"gmm_distribution_sklearn.png")
     logger.info("sklearn fitting done")
-    make_plots(data, valdata, out, filename=filename )
+    plot.make_plots(data, valdata, out, filename=filename )
     logger.info("plotting done")
     
 

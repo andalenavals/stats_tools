@@ -72,16 +72,18 @@ def make_grid_sample(data, npts=1000):
         outdata.append(np.random.uniform(mi,ma, npts))
     return np.array(outdata).T  
 
-def make_plots(data, valdata=None, out=None, bins=200, density=True, logy=False, filename=None):
+def make_plots(data, valdata=None, out=None, names=None, bins=200, density=True, logy=False, filename=None):
     data=data.T
     l=4 #inch
     plt.clf()
-    fig, ax= plt.subplots( 1, len(data), sharey=True, figsize=(len(data)*l,l), squeeze=0)
-   
+    nvars=len(data)
+    fig, ax= plt.subplots( 1, nvars, sharey=True, figsize=(len(data)*l,l), squeeze=0)
+    
+    if names is None: names=["p%i"%(i) for i in range(nvars)]
     
     for i, f in enumerate(data):
         ax[0,i].hist(f, bins=bins, log=logy, density=density,  histtype="step", color='blue', label="input dist")
-        ax[0,i].set_xlabel("")
+        ax[0,i].set_xlabel(names[i])
         med=np.median(f)
         ax[0,i].axvline(med, color='gray', lw=1.5,ls=":", label="Median: %.2f"%(med))
         ax[0,i].legend(loc='best')
@@ -91,7 +93,7 @@ def make_plots(data, valdata=None, out=None, bins=200, density=True, logy=False,
         for i, f in enumerate(valdata):
             #ax[0,i].plot(f, out,color='red', label="kde dist") # only work ins 1d
             ax[0,i].hist(f, weights=out, bins=bins, log=logy, density=density,histtype="step", color='red', label="kde dist")
-            ax[0,i].set_xlabel("")
+            ax[0,i].set_xlabel(names[i])
             med=np.median(f)
             ax[0,i].axvline(med, color='gray', lw=1.5,ls=":", label="Median: %.2f"%(med))
             ax[0,i].legend(loc='best')
@@ -107,11 +109,11 @@ def make_plots(data, valdata=None, out=None, bins=200, density=True, logy=False,
     plt.clf()
     fig, ax= plt.subplots( 1, nvars, sharey=True, figsize=(nvars*l,l), squeeze=0)
     plotkwargs={"color":'blue', "label":"input dist"}
-    plot.make_marginal_percentiles_plot(ax, data, weights=None, nbins=bins, logy=logy, plotkwargs=plotkwargs)
+    plot.make_marginal_percentiles_plot(ax, data, weights=None,names=names, nbins=bins, logy=logy, plotkwargs=plotkwargs)
     if valdata is not None:
         valdata=valdata.T
         plotkwargs={"color":'red', "label":"val dist"}
-        plot.make_marginal_percentiles_plot(ax, valdata, weights=out, nbins=bins, logy=logy, plotkwargs=plotkwargs)
+        plot.make_marginal_percentiles_plot(ax, valdata, weights=out,names=names, nbins=bins, logy=logy, plotkwargs=plotkwargs)
     fig.tight_layout()
     fig.savefig(filename.replace(".png", "_percentiles.png"), dpi=200)
     plt.close(fig)
@@ -120,11 +122,9 @@ def make_plots(data, valdata=None, out=None, bins=200, density=True, logy=False,
     plt.clf()
     colors=["green", "blue", "red", "black"]
     if valdata is not None:
-        names=["p%i"%(i) for i in range(nvars)]
-        trianglekwargs={"filled_compare":[True,True],"contour_colors":colors[:2], "line_args":[{'ls':'solid', 'lw':2, 'color':colors[i]} for i in range(nvars)], "title_limit":1, }
+        trianglekwargs={"filled_compare":[True,True],"contour_colors":colors[:2], "line_args":[{'ls':'solid', 'lw':2, 'color':colors[i]} for i in range(nvars)], "title_limit":1, "legend_labels":["Fit","Val"] }
         plot.getdist_plots_list([data, valdata], [names]*2, [names]*2, filename.replace(".png", "_contourns.png"),trianglekwargs,  weights_list=[None, out], title=None)
     else:
-        names=["p%i"%(i) for i in range(nvars)]
         plot.getdist_plots(data,names,names, filename.replace(".png", "_contourns.png"), weights=None, title=None)
         
 def kde_scipy(data, valdata, bandwidth=0.2, **kwargs):
@@ -181,7 +181,7 @@ def find_best_bandwidth(data,njobs=200):
 
     grid = GridSearchCV(KernelDensity(kernel="gaussian"), 
                     {'bandwidth': np.linspace(0.01, 100, njobs)}, 
-                        cv=20, n_jobs=njobs) # 20-fold cross-validation
+                        cv=200, n_jobs=njobs) # 20-fold cross-validation
     grid.fit(data)
     print (grid.best_params_)
     return grid.best_params_
@@ -201,7 +201,7 @@ def main():
     logger.info("work path done")
     
 
-    data=make_sample(1000)
+    data=make_sample(10000)
     valdata=make_grid_sample(data, 100000)
     #valdata=make_sample(100000)
     #valdata=data
@@ -210,11 +210,12 @@ def main():
     filename=os.path.join(outpath,"input_distribution.png")
     make_plots(data, filename=filename )
     logger.info("plotting done")
-    
-    di=find_best_bandwidth(data)
-    di={}
 
-    '''
+    logger.info("finding best bandwidth")
+    di=find_best_bandwidth(data)
+    #di={}
+
+    
     kwargs_sklearn={"kernel":"gaussian", "bandwidth":10}
     kwargs_sklearn.update(di)
     out=kde_sklearn(data, valdata,**kwargs_sklearn)
@@ -222,7 +223,7 @@ def main():
     logger.info("sklearn fitting done")
     make_plots(data, valdata, out, filename=filename )
     logger.info("plotting done")
-    '''
+    
 
     kwargs={}
     #out=kde_scipy(data, valdata,**kwargs)

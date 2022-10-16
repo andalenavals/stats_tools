@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def make_marginal_percentiles_plot(ax, data, weights=None, nbins=200,
+def make_marginal_percentiles_plot(ax, data, weights=None, names= None, nbins=200,
                                    mode='marginal', logy=False, showbins=False, plotkwargs={}):
     
     pers=np.linspace(0.0, 100.0, nbins+1)
@@ -26,10 +26,11 @@ def make_marginal_percentiles_plot(ax, data, weights=None, nbins=200,
             pdf=q/(Q*binsizes)
 
     nvars=pdf.shape[2]
+    if names is None: names=["p%i"%(i) for i in range(nvars)]
     for i in range(nvars):
         bincenter=binlows[:,0,i]+np.median(data*grid, axis=1, keepdims=True)[:,0,i]
         ax[0,i].plot(bincenter ,pdf[:,0,i], **plotkwargs)
-        ax[0,i].set_xlabel("")
+        ax[0,i].set_xlabel(names[i])
         if logy: ax[0,i].set_yscale('log')
         ax[0,i].legend(loc='best')
         if showbins:
@@ -105,3 +106,60 @@ def getdist_plots_list(samples_list, labels_list, names_list, filename,trianglek
     plt.savefig(filename, dpi=200)
     plt.close()
     print('Printed', filename)
+
+
+def make_plots(data, valdata=None, out=None, names=None, bins=200, density=True, logy=False, filename=None):
+    data=data.T
+    l=4 #inch
+    plt.clf()
+    nvars=data.shape[0]
+    fig, ax= plt.subplots( 1, nvars, sharey=True, figsize=(len(data)*l,l), squeeze=0)
+    
+    if names is None: names=["p%i"%(i) for i in range(nvars)]
+    
+    for i, f in enumerate(data):
+        ax[0,i].hist(f, bins=bins, log=logy, density=density,  histtype="step", color='blue', label="input dist")
+        ax[0,i].set_xlabel(names[i])
+        med=np.median(f)
+        ax[0,i].axvline(med, color='gray', lw=1.5,ls=":", label="Median: %.2f"%(med))
+        ax[0,i].legend(loc='best')
+    
+    if valdata is not None:
+        valdata=valdata.T
+        for i, f in enumerate(valdata):
+            #ax[0,i].plot(f, out,color='red', label="pred dist") # only work ins 1d
+            ax[0,i].hist(f, weights=out, bins=bins, log=logy, density=density,histtype="step", color='red', label="pred dist")
+            ax[0,i].set_xlabel(names[i])
+            med=np.median(f)
+            ax[0,i].axvline(med, color='gray', lw=1.5,ls=":", label="Median: %.2f"%(med))
+            ax[0,i].legend(loc='best')
+            
+    fig.tight_layout()
+    fig.savefig(filename, dpi=200)
+    plt.close(fig)
+
+
+    l=4
+    data=data.T; 
+    nvars=data.shape[1]
+    plt.clf()
+    fig, ax= plt.subplots( 1, nvars, sharey=True, figsize=(nvars*l,l), squeeze=0)
+    plotkwargs={"color":'blue', "label":"input dist"}
+    make_marginal_percentiles_plot(ax, data, weights=None,names=names, nbins=bins, logy=logy, plotkwargs=plotkwargs)
+    if valdata is not None:
+        valdata=valdata.T
+        plotkwargs={"color":'red', "label":"val dist"}
+        make_marginal_percentiles_plot(ax, valdata, weights=out,names=names, nbins=bins, logy=logy, plotkwargs=plotkwargs)
+    fig.tight_layout()
+    fig.savefig(filename.replace(".png", "_percentiles.png"), dpi=200)
+    plt.close(fig)
+
+    #contour plots
+    plt.clf()
+    colors=["green", "blue", "red", "black"]
+    if valdata is not None:
+        trianglekwargs={"filled_compare":[True,True],"contour_colors":colors[:2], "line_args":[{'ls':'solid', 'lw':2, 'color':colors[i]} for i in range(nvars)], "title_limit":1, "legend_labels":["Fit","Val"]}
+        getdist_plots_list([data, valdata], [names]*2, [names]*2, filename.replace(".png", "_contourns.png"),trianglekwargs,  weights_list=[None, out], title=None)
+    else:
+        getdist_plots(data,names,names, filename.replace(".png", "_contourns.png"), weights=None, title=None)
+ 

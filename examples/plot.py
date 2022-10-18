@@ -163,3 +163,47 @@ def make_plots(data, valdata=None, out=None, names=None, bins=200, density=True,
     else:
         getdist_plots(data,names,names, filename.replace(".png", "_contourns.png"), weights=None, title=None)
  
+
+def plot_walkers(chains, names=None, filename=None):
+    import emcee
+    # (nvars, nwalker, steps) chains
+    l=3
+    nvars=chains.shape[0]
+    nwalkers=chains.shape[1]
+    if names is None: names=['p%i'%(i) for i in range(nvars)]
+    fig, axs= plt.subplots( nvars, 3, sharey=False, figsize=(3*l,nvars*l), squeeze=0)
+    samples=np.vstack([arr.flatten() for arr in chains])
+
+    for i, chain in enumerate(chains):
+        par=chain.flatten()
+        axs[i][0].set_ylabel(names[i])
+        idx = np.arange(len(par))
+        axs[i][0].scatter(idx, par[idx], marker='o', c='k', s=10.0, alpha=0.1, linewidth=0)
+        # Get selfcorrelation using emcee
+        ac = emcee.autocorr.function_1d(par)
+        idx = np.arange(len(ac),step=1)
+        axs[i][1].scatter(idx, ac[idx], marker='o', c='k', s=10.0, alpha=0.1, linewidth=0)
+        axs[i][1].axhline(alpha=1., lw=1., color='red')
+        
+        par_mean = np.mean(chain, axis=0)
+        par_err = np.std(chain, axis=0) / np.sqrt(nwalkers)
+        idx = np.arange(len(par_mean))
+        axs[i][2].errorbar(x=idx, y=par_mean,
+                           yerr=par_err, errorevery=50,
+                           ecolor='red', lw=0.5, elinewidth=2.,
+                           color='k')
+    axs[nvars-1][0].set_xlabel("Ensemble step")
+    axs[nvars-1][1].set_xlabel("Ensemble step")
+    axs[nvars-1][2].set_xlabel("Walker Step")
+    axs[0][0].set_title("Ensemble dispersion")
+    axs[0][1].set_title("Ensemble autocorrelation")
+    axs[0][2].set_title("Walker mean and stdev")
+        
+    print("Printing file: %s"%(filename))
+    plt.tight_layout()
+    plt.savefig(filename)
+    plt.close(fig)
+    print(samples.shape)
+    #corner_plot(samples.T, names, filename.replace(".png", "_contour.png"))
+    getdist_plots(samples.T, names, names, filename.replace(".png", "_contour.png"))
+    

@@ -40,7 +40,7 @@ def parse_args():
     import argparse
     parser = argparse.ArgumentParser(description='Main script for sampling a distribution using mcmc')
     parser.add_argument('--workdir',
-                        default='out/kde', 
+                        default='out/mcmc', 
                         help='diractory of work')
    
     args = parser.parse_args()
@@ -56,26 +56,23 @@ def make_dir(dirname):
 
 
 def gaussian(x, mu, sig):
-    return 1./(np.sqrt(2.*np.pi)*sig)*np.exp(-np.power((x - mu)/sig, 2.)/2)
+    return (1./(np.sqrt(2.*np.pi)*sig))*np.exp(-0.5*np.power((x - mu)/sig, 2.))
 
 def dist(pars):
     x,y,z=pars
     fx=gaussian(x, 0, 2.5)
     fy=gaussian(y, 3.2, 1.5)
-    fz=np.sqrt(np.abs(x*y))
+    #fz=np.sqrt(np.abs(x*y))
+    fz=gaussian(z, x, np.abs(y))
     return fx*fy*fz
+
 def log_dist(pars):
     return np.log(dist(pars))
+#this is just for scipy minimization initial guess
+def nlog_dist(pars):
+    return -np.log(dist(pars))
 
-def make_sample(npts=1000):
-    x=np.random.normal(0,2.5, npts)
-    y=np.random.normal(3.2,1.5, npts)
-    z=np.random.uniform(2,2.5, npts)
-    ##each row must correspond to a single data point
-    data=np.array([x,y,np.sqrt(np.abs(x*y))])
-    #data=np.array([x,y])
-    #data=np.array([x])
-    return data.T
+
 def make_grid_sample(data, npts=1000):
     ndims=len(data.T)
     outdata=[]
@@ -140,20 +137,35 @@ def make_plots(data, valdata=None, out=None, bins=200, density=True, logy=False,
         names=["p%i"%(i) for i in range(nvars)]
         plot.getdist_plots(data,names,names, filename.replace(".png", "_contourns.png"), weights=None, title=None)
         
-
-def mcmc(nwalkers, ndim):
+def get_ipos_walkers(nwalkers, ndim):
+    import scipy.optimize as optimize
+    i_guess= [0.1, 3.2, 1.0]
+    result = optimize.minimize(nlog_dist, i_guess, method='Nelder-Mead', tol=1e-6 )
+    if result.success:
+        i_guess = result.x
+    else:
+        raise ValueError(result.message)
+    print(i_guess)
+    epsilon=1e-4
+    pos = [i_guess + epsilon*np.random.randn(ndim) for i in range(nwalkers)]
+    print(np.array(pos).shape)
+    return pos
+    
+def mcmc(nwalkers, ndim, log_dist, nsteps):
     import emcee
-    sampler= emcee.EnsembleSampler(nwalkers, ndim, log_dist, threads=1)
-    logger.info("Running MCMC")
-    sampler.run_mcmc(pos, nsteps)
-    alpha_chain = sampler.chain[:,:,0]; alpha_chain_flat = np.reshape(alpha_chain, (nwalkers*nsteps,))
-    beta_chain = sampler.chain[:,:,1]; beta_chain_flat = np.reshape(beta_chain, (nwalkers*nsteps,))
-    eta_chain = sampler.chain[:,:,2]; eta_chain_flat = np.reshape(eta_chain, (nwalkers*nsteps,))
-    samples = np.c_[alpha_chain_flat, beta_chain_flat, eta_chain_flat].T
-    chains = [alpha_chain, beta_chain, eta_chain]
-    sampler.reset()
-    return samples, chains
+    from multiprocessing import Pool
+    with Pool() as pool:
+        sampler= emcee.EnsembleSampler(nwalkers, ndim, log_dist, pool=pool)
+        #starting point the minimum (just for making this quicker
+        pos=get_ipos_walkers(nwalkers, ndim)
+        logger.info("Running MCMC")
+        sampler.run_mcmc(pos, nsteps)
+    # (nwalker, steps, nvars)
+    chain=sampler.chain
+    # (nvars, nwalker, steps)
+    chains=np.transpose(chain,[2,0,1])
     logger.info("Run finished")
+    return chains
 
 def main():
     
@@ -167,19 +179,21 @@ def main():
     outpath = os.path.expanduser(args.workdir)
     make_dir(outpath)
     logger.info("work path done")
-    
 
+    nwalkers=200
+    ndim=3
+    nsteps=10000
+    chains=mcmc(nwalkers, ndim, log_dist, nsteps)
+    filename=os.path.join(outpath,"mcmc_walkers.png")
+    plot.plot_walkers(chains, names=None, filename=filename)
 
-
-    
-    data=make_sample(1000)
+    data=np.vstack([arr.flatten() for arr in chains]).T
     valdata=make_grid_sample(data, 100000)
-    #valdata=make_sample(100000)
-    #valdata=data
     logger.info("data done")
-
-    filename=os.path.join(outpath,"input_distribution.png")
-    make_plots(data, filename=filename )
+    out=np.array([dist(pars) for pars in valdata])
+  
+    filename=os.path.join(outpath,"mcmc_vs_realdistribution.png")
+    make_plots(data, valdata, out, filename=filename )
     logger.info("plotting done")
     
   

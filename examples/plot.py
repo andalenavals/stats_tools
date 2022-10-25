@@ -169,6 +169,7 @@ def plot_walkers(chains, names=None, filename=None):
     # (nvars, nwalker, steps) chains
     l=3
     nvars=chains.shape[0]
+    nsteps=chains.shape[2]
     nwalkers=chains.shape[1]
     if names is None: names=['p%i'%(i) for i in range(nvars)]
     fig, axs= plt.subplots( nvars, 3, sharey=False, figsize=(3*l,nvars*l), squeeze=0)

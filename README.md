@@ -1,2 +1,2 @@
 # stats_tools
-Somo examples of statistical tools
+Some examples of statistical tools
